@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Gesture AI Desk — WS Test</title>
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; margin: 20px; }
+    canvas { border: 1px solid #333; border-radius: 8px; }
+    #hud { margin-top: 12px; font-size: 18px; display: flex; gap: 24px; }
+    .tag { padding: 4px 12px; border-radius: 4px; background: #222; }
+    .green { color: #4f4; }
+    .yellow { color: #ff4; }
+    #status { margin-bottom: 10px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="status">Connecting to ws://localhost:8765/ws …</div>
+  <canvas id="feed" width="640" height="480"></canvas>
+  <div id="hud">
+    <span class="tag">Gesture: <span id="gesture" class="green">—</span></span>
+    <span class="tag">Hold: <span id="hold" class="yellow">0%</span></span>
+    <span class="tag">Filter: <span id="filter">normal</span></span>
+    <span class="tag">Hand: <span id="hand">—</span></span>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('feed');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => ctx.drawImage(img, 0, 0, 640, 480);
+
+    function connect() {
+      const ws = new WebSocket('ws://localhost:8765/ws');
+
+      ws.onopen = () => {
+        document.getElementById('status').textContent = 'Connected';
+        document.getElementById('status').style.color = '#4f4';
+      };
+
+      ws.onmessage = (e) => {
+        const d = JSON.parse(e.data);
+        img.src = 'data:image/jpeg;base64,' + d.frame;
+        document.getElementById('gesture').textContent = d.gesture.name;
+        document.getElementById('hold').textContent = Math.round(d.gesture.hold_progress * 100) + '%';
+        document.getElementById('filter').textContent = d.active_filter;
+        document.getElementById('hand').textContent = d.hand_detected ? 'detected' : 'none';
+      };
+
+      ws.onclose = () => {
+        document.getElementById('status').textContent = 'Disconnected — reconnecting…';
+        document.getElementById('status').style.color = '#f44';
+        setTimeout(connect, 2000);
+      };
+    }
+
+    connect();
+  </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(.venv/Scripts/python backend/main.py)",
+      "Bash(.venv/Scripts/python -c \"import mediapipe; print\\(mediapipe.__version__\\); print\\(mediapipe.__file__\\)\")",
+      "Bash(.venv/Scripts/python -c \"import mediapipe as mp; print\\(dir\\(mp\\)\\)\")",
+      "Bash(.venv/Scripts/python -c \":*)",
+      "Bash(curl -sL -o hand_landmarker.task \"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task\")",
+      "Bash(npx create-next-app@latest frontend --typescript --tailwind --app --src-dir --no-import-alias --use-pnpm --eslint)"
+    ]
+  }
+}
