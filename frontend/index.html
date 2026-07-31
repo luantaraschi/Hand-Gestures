@@ -161,19 +161,7 @@
     </div>
   </div>
 
-  <div class="painel">
-    <div class="painel__t">Comandos</div>
-    <div class="painel__c comandos">
-      <div><b>Mão aberta</b><span>play / pause</span></div>
-      <div><b>Punho</b><span>mudo / som</span></div>
-      <div><b>V de paz</b><span>próxima faixa</span></div>
-      <div><b>Apontar</b><span>captura de tela</span></div>
-      <div><b>Joinha</b><span>aumenta o volume</span></div>
-      <div><b>Joinha ↓</b><span>abaixa o volume</span></div>
-      <div><b>Pinça</b><span>vertical é volume, horizontal é intensidade do filtro</span></div>
-      <div><b>Swipe</b><span>troca o filtro visual</span></div>
-    </div>
-  </div>
+
 
   <div style="display:grid; gap:16px; align-content:start;">
     <div class="painel">
@@ -186,6 +174,20 @@
             <div style="color:var(--dim)" id="mao">nenhuma mão à vista</div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="painel">
+      <div class="painel__t">Comandos</div>
+      <div class="painel__c comandos">
+        <div><b>Mão aberta</b><span>play / pause</span></div>
+        <div><b>Punho</b><span>mudo / som</span></div>
+        <div><b>V de paz</b><span>próxima faixa</span></div>
+        <div><b>Apontar</b><span>captura de tela</span></div>
+        <div><b>Joinha</b><span>aumenta o volume</span></div>
+        <div><b>Joinha ↓</b><span>abaixa o volume</span></div>
+        <div><b>Pinça</b><span>vertical é volume, horizontal é intensidade do filtro</span></div>
+        <div><b>Swipe</b><span>troca o filtro visual</span></div>
       </div>
     </div>
 
@@ -220,10 +222,15 @@
   var pinca = el('pinca'), pincaBarra = el('pincaBarra'), filtro = el('filtro');
   var pontos = el('pontos'), fpsEl = el('fps'), log = el('log');
 
+  // as chaves têm que bater com _GESTURE_NAMES do ws_server.py na letra: é
+  // "thumb_up", sem o s, e existem thumb_down, hang_loose e os dois swipes
   var NOMES = {
     open_hand: 'Mão aberta', fist: 'Punho', peace: 'V de paz',
-    point: 'Apontar', pinch: 'Pinça', thumbs_up: 'Joinha',
-    ok: 'OK', none: 'nenhum'
+    point: 'Apontar', pinch: 'Pinça',
+    thumb_up: 'Joinha', thumb_down: 'Joinha para baixo',
+    hang_loose: 'Hang loose',
+    swipe_left: 'Swipe ←', swipe_right: 'Swipe →',
+    none: 'nenhum'
   };
 
   var quadros = 0, ultimoSeg = 0, ultimaAcao = '';
