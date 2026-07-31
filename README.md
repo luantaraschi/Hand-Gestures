@@ -72,6 +72,9 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 
+# Modelo do MediaPipe (~7,8 MB, não vai no Git)
+curl -L -o backend/hand_landmarker.task https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+
 # Frontend
 cd frontend
 pnpm install
