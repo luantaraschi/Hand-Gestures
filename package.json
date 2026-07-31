@@ -2,9 +2,9 @@
   "name": "gesture-ai-desk",
   "private": true,
   "scripts": {
-    "dev": "cd frontend && pnpm dev",
+    "dev": ".venv\\Scripts\\python -m http.server 3000 --directory frontend",
     "backend": ".venv\\Scripts\\python backend\\ws_server.py",
-    "start": "concurrently --names back,front --prefix-colors blue,green \".venv\\\\Scripts\\\\python backend\\\\ws_server.py\" \"cd frontend && pnpm dev\""
+    "start": "concurrently --names back,front --prefix-colors blue,green \".venv\\Scripts\\python backend\\ws_server.py\" \"npm run dev\""
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

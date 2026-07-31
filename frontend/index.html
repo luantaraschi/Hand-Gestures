@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gesture AI Desk</title>
+<style>
+  /* Um arquivo, zero dependência, zero build: abre o index.html e pronto.
+     O backend já manda o frame como JPEG em base64, então não existe nada aqui
+     que precise de bundler — só um <img> trocando de src e uns números. */
+  :root {
+    --bg: #0b0d10;
+    --surface: #14181d;
+    --line: #232a32;
+    --txt: #e6edf3;
+    --dim: #8b98a5;
+    --on: #3fb950;
+    --off: #f85149;
+    --acc: #58a6ff;
+    --font: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--txt);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { margin: 0; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; }
+  .status { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--dim); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); }
+  .dot.on { background: var(--on); }
+
+  main {
+    display: grid;
+    gap: 16px;
+    padding: 16px 20px 28px;
+    max-width: 1160px;
+    margin: 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 900px) { main { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); } }
+
+  .painel { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; overflow: hidden; }
+  .painel__t {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .painel__c { padding: 14px; }
+
+  /* a imagem chega em 640x480; a proporção fica reservada para a página não
+     saltar entre o primeiro quadro e o segundo */
+  #video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }
+
+  .gesto { display: flex; align-items: center; gap: 14px; }
+  .gesto__nome { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+  .gesto__nome.nada { color: var(--dim); font-weight: 400; }
+
+  /* anel de hold: um conic-gradient guiado por --p, sem SVG e sem canvas */
+  .anel {
+    flex: none;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: conic-gradient(var(--acc) calc(var(--p, 0) * 1%), #262d36 0);
+    transition: background 80ms linear;
+  }
+  .anel span {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--surface);
+    display: grid; place-items: center;
+    font-size: 11px; color: var(--dim);
+  }
+
+  .linha { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .linha:first-child { border-top: 0; }
+  .linha b { font-weight: 500; color: var(--dim); }
+
+  .barra { height: 6px; background: #262d36; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  /* escala em vez de largura: isto atualiza a 30 fps, e animar `width` obriga o
+     browser a refazer o layout a cada quadro. `transform` fica no compositor. */
+  .barra > i {
+    display: block;
+    height: 100%;
+    background: var(--acc);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 90ms linear;
+  }
+
+  #log { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; }
+  #log li { padding: 5px 0; border-top: 1px solid var(--line); display: flex; gap: 10px; }
+  #log li:first-child { border-top: 0; }
+  #log time { color: var(--dim); flex: none; }
+  #log em { font-style: normal; color: var(--acc); }
+  .vazio { color: var(--dim); }
+
+  .aviso {
+    margin: 0 20px 16px;
+    padding: 12px 14px;
+    border: 1px solid #6f4700;
+    background: #241a05;
+    border-radius: 8px;
+    color: #e3b341;
+  }
+  .aviso[hidden] { display: none; }
+  .aviso code { color: #f0d68b; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Gesture AI Desk</h1>
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <span id="conexao">conectando…</span>
+  </div>
+</header>
+
+<p class="aviso" id="aviso" hidden>
+  Sem conexão com o backend. Suba ele com
+  <code>.venv\Scripts\python backend\ws_server.py</code> e recarregue esta página.
+</p>
+
+<main>
+  <div class="painel">
+    <div class="painel__t">Câmera · 30 fps</div>
+      <!-- src inicial é um pixel transparente: sem ele o browser desenha o ícone
+         de imagem quebrada no segundo que separa o carregamento do primeiro
+         quadro vindo do WebSocket -->
+    <img id="video" alt="Imagem da webcam com os pontos da mão desenhados por cima"
+         src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+  </div>
+
+  <div style="display:grid; gap:16px; align-content:start;">
+    <div class="painel">
+      <div class="painel__t">Gesto</div>
+      <div class="painel__c">
+        <div class="gesto">
+          <div class="anel" id="anel"><span id="pct">0%</span></div>
+          <div>
+            <div class="gesto__nome nada" id="gesto">nenhum</div>
+            <div style="color:var(--dim)" id="mao">nenhuma mão à vista</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="painel">
+      <div class="painel__t">Estado</div>
+      <div class="painel__c">
+        <div class="linha"><b>Pinça</b><span id="pinca">inativa</span></div>
+        <div class="barra"><i id="pincaBarra"></i></div>
+        <div class="linha"><b>Filtro</b><span id="filtro">—</span></div>
+        <div class="linha"><b>Landmarks</b><span id="pontos">0</span></div>
+        <div class="linha"><b>Quadros</b><span id="fps">0/s</span></div>
+      </div>
+    </div>
+
+    <div class="painel">
+      <div class="painel__t">Ações disparadas</div>
+      <div class="painel__c">
+        <ul id="log"><li class="vazio">Nada ainda. Segure um gesto até o anel fechar.</li></ul>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var WS = 'ws://localhost:8765/ws';
+  var el = function (id) { return document.getElementById(id); };
+  var video = el('video'), dot = el('dot'), conexao = el('conexao'), aviso = el('aviso');
+  var gesto = el('gesto'), mao = el('mao'), anel = el('anel'), pct = el('pct');
+  var pinca = el('pinca'), pincaBarra = el('pincaBarra'), filtro = el('filtro');
+  var pontos = el('pontos'), fpsEl = el('fps'), log = el('log');
+
+  var NOMES = {
+    open_hand: 'Mão aberta', fist: 'Punho', peace: 'V de paz',
+    point: 'Apontar', pinch: 'Pinça', thumbs_up: 'Joinha',
+    ok: 'OK', none: 'nenhum'
+  };
+
+  var quadros = 0, ultimoSeg = 0, ultimaAcao = '';
+
+  function registrar(nome) {
+    if (log.querySelector('.vazio')) log.innerHTML = '';
+    var li = document.createElement('li');
+    var t = document.createElement('time');
+    t.textContent = new Date().toLocaleTimeString('pt-BR');
+    var e = document.createElement('em');
+    e.textContent = NOMES[nome] || nome;
+    li.appendChild(t);
+    li.appendChild(e);
+    log.insertBefore(li, log.firstChild);
+    while (log.children.length > 40) log.removeChild(log.lastChild);
+  }
+
+  function conectar() {
+    var ws;
+    try { ws = new WebSocket(WS); } catch (e) { falhou(); return; }
+
+    ws.onopen = function () {
+      dot.classList.add('on');
+      conexao.textContent = 'conectado';
+      aviso.hidden = true;
+    };
+
+    ws.onmessage = function (ev) {
+      var d;
+      try { d = JSON.parse(ev.data); } catch (e) { return; }
+
+      if (d.frame) video.src = 'data:image/jpeg;base64,' + d.frame;
+
+      quadros++;
+      var seg = Math.floor(d.timestamp || 0);
+      if (seg !== ultimoSeg) { fpsEl.textContent = quadros + '/s'; quadros = 0; ultimoSeg = seg; }
+
+      var g = d.gesture || {};
+      var nome = g.name || 'none';
+      gesto.textContent = NOMES[nome] || nome;
+      gesto.classList.toggle('nada', nome === 'none');
+
+      mao.textContent = d.hand_detected ? 'mão detectada' : 'nenhuma mão à vista';
+
+      var p = Math.round((g.hold_progress || 0) * 100);
+      anel.style.setProperty('--p', p);
+      pct.textContent = p + '%';
+
+      // o backend manda o disparo num quadro só; sem a trava o mesmo gesto
+      // entraria no log dezenas de vezes enquanto a mão continua parada
+      if (g.action_triggered && ultimaAcao !== nome) { registrar(nome); ultimaAcao = nome; }
+      if (!g.action_triggered && p === 0) ultimaAcao = '';
+
+      var pi = d.pinch || {};
+      pinca.textContent = pi.active ? (pi.type || 'ativa') : 'inativa';
+      pincaBarra.style.transform = 'scaleX(' + (pi.active ? (pi.value || 0) : 0) + ')';
+
+      filtro.textContent = d.active_filter || '—';
+      pontos.textContent = (d.landmarks && d.landmarks.length) || 0;
+    };
+
+    ws.onclose = falhou;
+    ws.onerror = function () { try { ws.close(); } catch (e) {} };
+  }
+
+  function falhou() {
+    dot.classList.remove('on');
+    conexao.textContent = 'desconectado';
+    aviso.hidden = false;
+    // tenta de novo sozinho: reiniciar o backend não pode obrigar a recarregar
+    setTimeout(conectar, 2000);
+  }
+
+  conectar();
+})();
+</script>
+</body>
+</html>
