@@ -63,7 +63,18 @@
 
   /* a imagem chega em 640x480; a proporção fica reservada para a página não
      saltar entre o primeiro quadro e o segundo */
+  .palco { position: relative; line-height: 0; }
   #video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }
+  /* o esqueleto é desenhado por cima da imagem, não dentro dela: o backend
+     manda as coordenadas normalizadas em 0..1, então o canvas só precisa
+     acompanhar o tamanho renderizado do <img>, seja ele qual for */
+  #ossos { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  .comandos { display: grid; gap: 0; }
+  .comandos > div { display: flex; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); align-items: baseline; }
+  .comandos > div:first-child { border-top: 0; }
+  .comandos b { flex: none; width: 96px; font-weight: 500; }
+  .comandos span { color: var(--dim); }
 
   .gesto { display: flex; align-items: center; gap: 14px; }
   .gesto__nome { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
@@ -143,8 +154,25 @@
       <!-- src inicial é um pixel transparente: sem ele o browser desenha o ícone
          de imagem quebrada no segundo que separa o carregamento do primeiro
          quadro vindo do WebSocket -->
-    <img id="video" alt="Imagem da webcam com os pontos da mão desenhados por cima"
-         src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+    <div class="palco">
+      <img id="video" alt="Imagem da webcam com os pontos da mão desenhados por cima"
+           src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+      <canvas id="ossos" aria-hidden="true"></canvas>
+    </div>
+  </div>
+
+  <div class="painel">
+    <div class="painel__t">Comandos</div>
+    <div class="painel__c comandos">
+      <div><b>Mão aberta</b><span>play / pause</span></div>
+      <div><b>Punho</b><span>mudo / som</span></div>
+      <div><b>V de paz</b><span>próxima faixa</span></div>
+      <div><b>Apontar</b><span>captura de tela</span></div>
+      <div><b>Joinha</b><span>aumenta o volume</span></div>
+      <div><b>Joinha ↓</b><span>abaixa o volume</span></div>
+      <div><b>Pinça</b><span>vertical é volume, horizontal é intensidade do filtro</span></div>
+      <div><b>Swipe</b><span>troca o filtro visual</span></div>
+    </div>
   </div>
 
   <div style="display:grid; gap:16px; align-content:start;">
@@ -200,6 +228,59 @@
 
   var quadros = 0, ultimoSeg = 0, ultimaAcao = '';
 
+  // Os 21 pontos do MediaPipe, ligados na ordem que a mão tem de verdade: o
+  // pulso é o 0, e dali saem cinco cadeias de quatro ossos cada.
+  var OSSOS = [
+    [0,1],[1,2],[2,3],[3,4],           // polegar
+    [0,5],[5,6],[6,7],[7,8],           // indicador
+    [0,9],[9,10],[10,11],[11,12],      // médio
+    [0,13],[13,14],[14,15],[15,16],    // anelar
+    [0,17],[17,18],[18,19],[19,20],    // mínimo
+    [5,9],[9,13],[13,17]               // a palma, fechando o leque
+  ];
+  var PONTAS = [4, 8, 12, 16, 20];
+  var cv = el('ossos'), ctx = cv.getContext('2d');
+
+  function desenharMao(pts) {
+    // o canvas acompanha o tamanho renderizado do <img>, que muda com a janela
+    var r = video.getBoundingClientRect();
+    if (cv.width !== Math.round(r.width) || cv.height !== Math.round(r.height)) {
+      cv.width = Math.round(r.width);
+      cv.height = Math.round(r.height);
+    }
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!pts || !pts.length) return;
+
+    var X = function (i) { return pts[i][0] * cv.width; };
+    var Y = function (i) { return pts[i][1] * cv.height; };
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(88, 166, 255, 0.85)';
+    ctx.beginPath();
+    for (var i = 0; i < OSSOS.length; i++) {
+      var a = OSSOS[i][0], b = OSSOS[i][1];
+      if (!pts[a] || !pts[b]) continue;
+      ctx.moveTo(X(a), Y(a));
+      ctx.lineTo(X(b), Y(b));
+    }
+    ctx.stroke();
+
+    // ponta de dedo maior e clara, junta menor: dá pra contar os cinco dedos
+    // de relance, que é o que faz a captura provar o rastreamento
+    for (var j = 0; j < pts.length; j++) {
+      var ponta = PONTAS.indexOf(j) !== -1;
+      ctx.beginPath();
+      ctx.arc(X(j), Y(j), ponta ? 5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = ponta ? '#e6edf3' : '#58a6ff';
+      ctx.fill();
+      if (ponta) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#0b0d10';
+        ctx.stroke();
+      }
+    }
+  }
+
   function registrar(nome) {
     if (log.querySelector('.vazio')) log.innerHTML = '';
     var li = document.createElement('li');
@@ -228,6 +309,7 @@
       try { d = JSON.parse(ev.data); } catch (e) { return; }
 
       if (d.frame) video.src = 'data:image/jpeg;base64,' + d.frame;
+      desenharMao(d.landmarks);
 
       quadros++;
       var seg = Math.floor(d.timestamp || 0);
